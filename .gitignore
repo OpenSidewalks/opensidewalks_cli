@@ -1,5 +1,12 @@
-data_sources/*
-!data_sources/.gitkeep
+# Python
+*.egg-info
+__pycache__
+
+# GIS files
 *.qgz
 *.osm.pbf
 *.geojson
+
+# Repo-specific
+staging_directory/*
+!staging_directory/.gitkeep

@@ -1,6 +1,5 @@
 import json
 import os
-import sys
 
 import geopandas as gpd
 import networkx as nx
@@ -240,8 +239,8 @@ class OSMGraph:
             last_s = -10
             for ni, n, no, s in sorted_node_data:
                 if (s - last_s) != 1:
-                    # The last segment and this segment are not neighbors - create
-                    # new group
+                    # The last segment and this segment are not neighbors -
+                    # create new group
                     receiving_edge = (ni, n)
                     groups[receiving_edge] = []
                 groups[receiving_edge].append(n)
@@ -252,17 +251,16 @@ class OSMGraph:
             for (u, v), nodes in groups.items():
                 edge_data = self.G[u][v][0]
                 ndref = edge_data["ndref"]
-                last_node = u
                 for node in nodes:
                     # Append following to ndref
                     following_node = next(self.G.successors(node))
                     ndref.append(following_node)
                     self.G.remove_edge(node, following_node)
-                    last_node = node
                 self.G.add_edges_from([(u, node, edge_data)])
 
     def construct_geometries(self):
-        # Given the current list of node references per edge, construct geometry
+        # Given the current list of node references per edge, construct
+        # geometry
         for u, v, d in self.G.edges(data=True):
             coords = []
             for ref in d["ndref"]:
@@ -549,16 +547,3 @@ def extract_sidewalk_tasks(osm_file, neighborhood_geojson, output_dir):
     output_path = os.path.join(output_dir, "sidewalk_tasks.geojson")
     with open(output_path, "w") as f:
         json.dump(tasks_fc, f)
-
-    # print(next(iter(G.edges(data=True))))
-
-
-if __name__ == "__main__":
-    osm_file = sys.argv[1]
-    neighborhood_geojson = sys.argv[2]
-    output_dir = sys.argv[3]
-    if not os.path.exists(output_dir):
-        os.mkdir(output_dir)
-
-    extract_crossing_tasks(osm_file, neighborhood_geojson, output_dir)
-    extract_sidewalk_tasks(osm_file, neighborhood_geojson, output_dir)

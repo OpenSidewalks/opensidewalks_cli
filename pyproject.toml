@@ -1,10 +1,12 @@
 [tool.poetry]
-name = "opensidewalks-data-staging"
+name = "opensidewalks-cli"
 version = "0.1.0"
-description = "OpenStreetMap data (and mapping task) staging workflows for pedestrian network mapping."
+description = "OpenStreetMap command line tools for data staging and task splitting for pedestrian data (OpenSidewalks)."
 authors = ["Nick Bolten"]
 license = "Apache-2.0"
 
+[tool.poetry.scripts]
+osw = "opensidewalks_cli:cli.osw"
 
 [tool.poetry.dependencies]
 python = "^3.8"
@@ -16,6 +18,7 @@ geopandas = "^0.8.1"
 osmium = "^3.1.2"
 networkx = "^2.5"
 rtree = "^0.9.7"
+click = "^7.1.2"
 
 [tool.poetry.dev-dependencies]
 
