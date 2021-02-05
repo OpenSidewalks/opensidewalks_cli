@@ -7,8 +7,17 @@ import numpy as np
 import osmium
 import pyproj
 import scipy
-from shapely.geometry import LineString, Polygon
+from shapely.geometry import (
+    LineString,
+    MultiLineString,
+    MultiPolygon,
+    Polygon,
+    mapping,
+    shape,
+)
 from shapely.ops import polygonize
+
+from opensidewalks_cli.exceptions import InvalidPolygonError
 
 
 STREET_TAGS = [
@@ -35,8 +44,9 @@ def cut_polygon(polygon, distances, points):
             pd += point_distance(last, p)
 
             if pd > distance:
+                j = i + 1
                 return (
-                    LineString([(point.x, point.y)] + coords[i + 1 :]),
+                    LineString([(point.x, point.y)] + coords[j:]),
                     coords[:i] + [(point.x, point.y)],
                 )
             # print(pd, distance)
@@ -130,74 +140,15 @@ class OSMGraph:
 
         del parser
 
-        # # TODO: allow selection of graph container type - in-memory vs.
-        # entwiner
-        # G = nx.MultiDiGraph()
-        # # TODO: logging?
-
-        # if way_filter is None:
-        #     way_filter = lambda u, v, d: True
-
-        # # Have to do two passes:
-        # # Pass 1: extract graph structure using ways and node refs
-        # # Pass 2: extract node lon-lat information so that we only retain
-        # # used nodes
-        # # in memory
-        # # NOTE: if data structure was already ordered with ways first, then
-        # # nodes, this
-        # # would not require two passes. Way to verify?
-        # osm_iter = osmread.parse_file(pbf)
-
-        # print("Adding ways...")
-        # # TODO: pre-filter incoming data with faster tool. Separate out nodes
-        # # and ways,
-        # # ideally with tag filter. Read as separate files. Lots of time
-        # # wasted
-        # # iterating over elements we don't analyze, because nodes occur
-        # # before ways
-        # # in these files and we need to know ways before nodes.
-        # for primitive in osm_iter:
-        #     if isinstance(primitive, osmread.Way):
-        #         # Why does way_filter take u and v arguments anyways?
-        #         if not way_filter(primitive.tags):
-        #             continue
-
-        #         d = {
-        #             "osm_id": primitive.id,
-        #             "tags": {}
-        #         }
-        #         d["ignore_incline"] = 0
-        #         for key, values in IGNORE_INCLINE_TAGS.items():
-        #             if key in primitive.tags and primitive.tags[key] in values:
-        #                 d["ignore_incline"] = 1
-        #         for key, values in KEEP_KEYS.items():
-        #             if key in primitive.tags and primitive.tags[key] in values:
-        #                 d["tags"][key] = primitive.tags[key]
-
-        #         for i, (u, v) in enumerate(zip(primitive.nodes, primitive.nodes[1:])):
-        #             d2 = {**d}
-        #             d2["segment"] = i
-        #             d2["ndref"] = [u, v]
-        #             G.add_edges_from([(u, v, d2)])
-
-        # print("Adding nodes...")
-        # osm_iter = osmread.parse_file(pbf)
-        # for primitive in osm_iter:
-        #     if isinstance(primitive, osmread.Node):
-        #         if primitive.id in G:
-        #             # Add any relevant node data
-        #             G.add_node(
-        #                 primitive.id,
-        #                 lon=round(primitive.lon, 7),
-        #                 lat=round(primitive.lat, 7)
-        #             )
-
         return OSMGraph(G)
 
     def simplify(self):
-        """Simplifies graph by merging way segments of degree 2 - i.e. continuations."""
-        # Structure is way_id: (node, segment_number). This makes it easy to sort
-        # on-the-fly.
+        """Simplifies graph by merging way segments of degree 2 - i.e.
+        continuations.
+
+        """
+        # Structure is way_id: (node, segment_number). This makes it easy to
+        # sort on-the-fly.
         remove_nodes = {}
 
         for node in self.G.nodes:
@@ -205,16 +156,17 @@ class OSMGraph:
             successors = list(self.G.successors(node))
 
             if (len(predecessors) == 1) and (len(successors) == 1):
-                # Only one predecessor and one successor - ideal internal node to
-                # remove from graph, merging its location data into other edges.
+                # Only one predecessor and one successor - ideal internal node
+                # to remove from graph, merging its location data into other
+                # edges.
                 node_in = predecessors[0]
                 node_out = successors[0]
                 edge_in = self.G[node_in][node][0]
                 edge_out = self.G[node][node_out][0]
 
-                # Only one exception: we shouldn't remove a node that's shared between
-                # two different ways: this is an important decision point for some
-                # paths.
+                # Only one exception: we shouldn't remove a node that's shared
+                # between two different ways: this is an important decision
+                # point for some paths.
                 if edge_in["osm_id"] != edge_out["osm_id"]:
                     continue
 
@@ -227,9 +179,10 @@ class OSMGraph:
                 else:
                     remove_nodes[edge_id] = [node_data]
 
-        # NOTE: an otherwise unconnected circular path would be removed, as all nodes
-        # are degree 2 and on the same way. This path is pointless for a network, but
-        # is something to keep in mind for any downstream analysis.
+        # NOTE: an otherwise unconnected circular path would be removed, as all
+        # nodes are degree 2 and on the same way. This path is pointless for a
+        # network, but is something to keep in mind for any downstream
+        # analysis.
         for way_id, node_data in remove_nodes.items():
             # Sort by segment number
             sorted_node_data = list(sorted(node_data, key=lambda x: x[3]))
@@ -374,20 +327,28 @@ def extract_crossing_tasks(osm_file, neighborhood_geojson, output_dir):
 
     # Trim task polygons
     gdf_tasks = gpd.GeoDataFrame(features)
-    gdf_area = gpd.GeoDataFrame(
-        [{"geometry": Polygon(polygon["geometry"]["coordinates"][0])}]
-    )
+
+    try:
+        polygon_shapely = shape(polygon["geometry"])
+    except ValueError:
+        raise InvalidPolygonError()
+
+    if polygon_shapely.type not in ["Polygon", "MultiPolygon"]:
+        raise InvalidPolygonError()
+
+    if polygon_shapely.type == "Polygon":
+        polygon_shapely = MultiPolygon([polygon_shapely])
+
+    gdf_area = gpd.GeoDataFrame([{"geometry": polygon_shapely}])
     gdf_trimmed = gpd.overlay(gdf_tasks, gdf_area, how="intersection")
 
+    features = []
     tasks_fc = {
         "type": "FeatureCollection",
         "features": [
             {
                 "type": "Feature",
-                "geometry": {
-                    "type": "Polygon",
-                    "coordinates": [list(row["geometry"].exterior.coords)],
-                },
+                "geometry": mapping(row["geometry"]),
                 "properties": {},
             }
             for idx, row in gdf_trimmed.iterrows()
@@ -455,15 +416,14 @@ def extract_sidewalk_tasks(osm_file, neighborhood_geojson, output_dir):
 
     # Create split-up neighborhoods polygon
     gdf_lines = gpd.GeoDataFrame(geometry=lines)
-    polygon_shapely = Polygon(polygon["geometry"]["coordinates"][0])
-    area_line = LineString(polygon["geometry"]["coordinates"][0])
+    polygon_shapely = shape(polygon["geometry"])
+    if polygon_shapely.type == "Polygon":
+        area_line = LineString(polygon_shapely.exterior.coords)
+    else:
+        area_line = MultiLineString(
+            [geom.exterior.coords for geom in polygon_shapely]
+        )
     gdf_polygon = gpd.GeoDataFrame(geometry=[polygon_shapely])
-    # gdf_clip_points = gpd.overlay(gdf_lines, gdf_polygon, how="intersection")
-    # print(gdf_clip_points)
-
-    # print(
-    #     LineString([[0, 0], [1, 1]]).intersection(LineString([[0, 1], [1, 0]]))
-    # )
 
     gdf_intersecting_lines = gpd.sjoin(
         gdf_lines, gdf_polygon, op="intersects", how="inner"
@@ -501,7 +461,12 @@ def extract_sidewalk_tasks(osm_file, neighborhood_geojson, output_dir):
     with open(ixn_pt_path, "w") as f:
         json.dump(ixn_points_fc, f)
 
-    polygon_lines = cut_polygon(area_line, distances, intersecting_points)
+    if area_line.type == "LineString":
+        polygon_lines = cut_polygon(area_line, distances, intersecting_points)
+    else:
+        for line in area_line:
+            polygon_lines = []
+            polygon_lines += cut_polygon(line, distances, intersecting_points)
 
     polygon_path = os.path.join(
         output_dir, "sidewalk_tasks_cut_polygon.geojson"
@@ -535,10 +500,7 @@ def extract_sidewalk_tasks(osm_file, neighborhood_geojson, output_dir):
     for polygon in sidewalk_tasks_polygons:
         feature = {
             "type": "Feature",
-            "geometry": {
-                "type": "Polygon",
-                "coordinates": [list(polygon.exterior.coords)],
-            },
+            "geometry": mapping(polygon),
             "properties": {},
         }
         features.append(feature)
