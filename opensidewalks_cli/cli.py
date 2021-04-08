@@ -4,10 +4,8 @@ import os
 import click
 
 from opensidewalks_cli.exceptions import InvalidPolygonError
-from opensidewalks_cli.extract_tasks import (
-    extract_crossing_tasks,
-    extract_sidewalk_tasks,
-)
+from opensidewalks_cli.tasks.crossing_tasks import extract_crossing_tasks
+from opensidewalks_cli.tasks.sidewalk_tasks import extract_sidewalk_tasks
 
 
 @click.group()
