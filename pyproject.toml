@@ -1,5 +1,5 @@
 [tool.poetry]
-name = "opensidewalks-cli"
+name = "opensidewalks_cli"
 version = "0.1.0"
 description = "OpenStreetMap command line tools for data staging and task splitting for pedestrian data (OpenSidewalks)."
 authors = ["Nick Bolten"]
@@ -13,7 +13,7 @@ python = "^3.8"
 jupyter = {extras = ["all"], version = "^1.0.0"}
 plotnine = "^0.7.1"
 numpy = "^1.19.5"
-scipy = "^1.6.0"
+scipy = "^1.6.1"
 geopandas = "^0.8.1"
 osmium = "^3.1.2"
 networkx = "^2.5"

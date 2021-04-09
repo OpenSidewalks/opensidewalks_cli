@@ -4,14 +4,6 @@ import pyproj
 from shapely.geometry import LineString
 
 
-STREET_TAGS = [
-    "primary",
-    "secondary",
-    "tertiary",
-    "residential",
-]
-
-
 class OSMGraph:
     def __init__(self, G=None):
         if G is not None:
@@ -66,64 +58,28 @@ class OSMGraph:
         remove_nodes = {}
 
         for node in self.G.nodes:
-            predecessors = list(self.G.predecessors(node))
-            successors = list(self.G.successors(node))
-
-            if (len(predecessors) == 1) and (len(successors) == 1):
-                # Only one predecessor and one successor - ideal internal node
-                # to remove from graph, merging its location data into other
-                # edges.
-                node_in = predecessors[0]
-                node_out = successors[0]
-                edge_in = self.G[node_in][node][0]
-                edge_out = self.G[node][node_out][0]
-
-                # Only one exception: we shouldn't remove a node that's shared
-                # between two different ways: this is an important decision
-                # point for some paths.
-                if edge_in["osm_id"] != edge_out["osm_id"]:
-                    continue
-
-                node_data = (node_in, node, node_out, edge_in["segment"])
+            if self._filter_nodes_to_remove(node):
+                (
+                    node_in,
+                    node,
+                    node_out,
+                    incoming_way_id,
+                    incoming_way_segment,
+                ) = self._create_incoming_segment(node)
 
                 # Group by way
-                edge_id = edge_in["osm_id"]
-                if edge_id in remove_nodes:
-                    remove_nodes[edge_id].append(node_data)
+                node_data = (node_in, node, node_out, incoming_way_segment)
+                if incoming_way_id in remove_nodes:
+                    remove_nodes[incoming_way_id].append(node_data)
                 else:
-                    remove_nodes[edge_id] = [node_data]
+                    remove_nodes[incoming_way_id] = [node_data]
 
         # NOTE: an otherwise unconnected circular path would be removed, as all
         # nodes are degree 2 and on the same way. This path is pointless for a
         # network, but is something to keep in mind for any downstream
         # analysis.
         for way_id, node_data in remove_nodes.items():
-            # Sort by segment number
-            sorted_node_data = list(sorted(node_data, key=lambda x: x[3]))
-
-            # Group by neighboring segments
-            groups = {}
-            last_s = -10
-            for ni, n, no, s in sorted_node_data:
-                if (s - last_s) != 1:
-                    # The last segment and this segment are not neighbors -
-                    # create new group
-                    receiving_edge = (ni, n)
-                    groups[receiving_edge] = []
-                groups[receiving_edge].append(n)
-                last_s = s
-
-            # Remove internal nodes by group
-            # FIXME: ended up with two edges (!) in many cases. DUPES!
-            for (u, v), nodes in groups.items():
-                edge_data = self.G[u][v][0]
-                ndref = edge_data["ndref"]
-                for node in nodes:
-                    # Append following to ndref
-                    following_node = next(self.G.successors(node))
-                    ndref.append(following_node)
-                    self.G.remove_edge(node, following_node)
-                self.G.add_edges_from([(u, node, edge_data)])
+            self._merge_ways(node_data)
 
     def construct_geometries(self):
         # Given the current list of node references per edge, construct
@@ -180,3 +136,96 @@ class OSMGraph:
 
     def is_directed(self):
         return self.G.is_directed()
+
+    def _filter_nodes_to_remove(self, node):
+        predecessors = list(self.G.predecessors(node))
+        successors = list(self.G.successors(node))
+
+        if (len(predecessors) == 1) and (len(successors) == 1):
+            # Only one predecessor and one successor - ideal internal node
+            # to remove from graph, merging its location data into other
+            # edges.
+            node_in = predecessors[0]
+            node_out = successors[0]
+            edge_in = self.G[node_in][node][0]
+            edge_out = self.G[node][node_out][0]
+
+            # Don't remove nodes shared by two different ways (for now).
+            # FIXME: do we really want to do this?
+            if edge_in["osm_id"] != edge_out["osm_id"]:
+                return False
+            return True
+        return False
+
+    def _create_incoming_segment(self, node):
+        predecessors = list(self.G.predecessors(node))
+        successors = list(self.G.successors(node))
+        node_in = predecessors[0]
+        node_out = successors[0]
+        incoming_way = self.G[node_in][node][0]
+        incoming_way_id = incoming_way["osm_id"]
+        incoming_way_segment = incoming_way["segment"]
+
+        return (node_in, node, node_out, incoming_way_id, incoming_way_segment)
+
+    def _merge_ways(self, node_data):
+        # node_data is a list of nodes to remove along with metadata about them
+        # like the two neighboring nodes (ordered) and the index of the segment
+        # preceding it.
+
+        # Sort by segment index so that nodes are in same order as in the way
+        sorted_node_data = list(sorted(node_data, key=lambda x: x[3]))
+
+        # Group by neighboring segments
+        groups = []
+
+        node_in, node, node_out, segment_index = sorted_node_data[0]
+        group = {
+            "u": node_in,
+            "v": node_out,
+            "v_original": node,
+            "merge_nodes": [node],
+            "drop_edges": [(node, node_out)],
+        }
+        last_segment_index = segment_index
+        for node_in, node, node_out, segment_index in sorted_node_data[1:]:
+            if (segment_index - last_segment_index) == 1:
+                # They're neighbors, so extend the current group
+                group["v"] = node_out
+                group["merge_nodes"].append(node)
+                group["drop_edges"].append((node, node_out))
+            else:
+                # They aren't neighbors, so create a new group
+                groups.append(group)
+                group = {
+                    "u": node_in,
+                    "v": node_out,
+                    "v_original": node,
+                    "merge_nodes": [node],
+                    "drop_edges": [(node, node_out)],
+                }
+            last_segment_index = segment_index
+
+        # Append the last group
+        groups.append(group)
+
+        # Remove internal nodes by group
+        for group in groups:
+            u = group["u"]
+            v = group["v"]
+            v_original = group["v_original"]
+            merge_nodes = group["merge_nodes"]
+
+            edge_data = self.G[u][v_original][0]
+
+            ndref = edge_data["ndref"]
+            for merge_node in merge_nodes:
+                # Add to node references
+                ndref.append(merge_node)
+            ndref.append(v)
+
+            # Remove edges that have been merged.
+            for u_drop, v_drop in group["drop_edges"]:
+                self.G.remove_edge(u_drop, v_drop)
+
+            self.G.add_edges_from([(u, v, edge_data)])

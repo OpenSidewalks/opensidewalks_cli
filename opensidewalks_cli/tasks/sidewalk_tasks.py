@@ -11,14 +11,7 @@ from shapely.geometry import (
 from shapely.ops import polygonize
 
 from opensidewalks_cli.osm_graph import OSMGraph
-
-
-STREET_TAGS = [
-    "primary",
-    "secondary",
-    "tertiary",
-    "residential",
-]
+from opensidewalks_cli.way_filters import street_filter
 
 
 def cut_polygon(polygon, distances, points):
@@ -42,7 +35,6 @@ def cut_polygon(polygon, distances, points):
                     LineString([(point.x, point.y)] + coords[j:]),
                     coords[:i] + [(point.x, point.y)],
                 )
-            # print(pd, distance)
 
             last = p
         # Should not be able to reach this situation - catch it
@@ -97,15 +89,7 @@ def extract_sidewalk_tasks(osm_file, neighborhood_geojson, output_dir):
         polygon_fc = json.load(f)
     polygon = polygon_fc["features"][0]
 
-    # Loop through the OSM file and extract network + coordinate information
-    def way_filter(d):
-        if "highway" not in d:
-            return False
-        if d["highway"] in STREET_TAGS:
-            return True
-        return False
-
-    OG = OSMGraph.from_pbf(osm_file, way_filter=way_filter)
+    OG = OSMGraph.from_pbf(osm_file, way_filter=street_filter)
 
     # OG.simplify()
     G = OG.G

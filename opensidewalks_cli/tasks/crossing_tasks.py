@@ -13,14 +13,12 @@ from shapely.geometry import (
 
 from opensidewalks_cli.exceptions import InvalidPolygonError
 from opensidewalks_cli.osm_graph import OSMGraph
+from opensidewalks_cli.way_filters import street_filter
 
+# TODO: cluster boulevards like OSMnx (or just use OSMnx for compatibility).
 
-STREET_TAGS = [
-    "primary",
-    "secondary",
-    "tertiary",
-    "residential",
-]
+# TODO: should include intersections between streets and parking lot ways
+#       but not intersections solely between parking lot ways
 
 
 def extract_crossing_tasks(osm_file, neighborhood_geojson, output_dir):
@@ -29,27 +27,39 @@ def extract_crossing_tasks(osm_file, neighborhood_geojson, output_dir):
         polygon_fc = json.load(f)
     polygon = polygon_fc["features"][0]
 
-    # Loop through the OSM file and extract network + coordinate information
-    def way_filter(d):
-        if "highway" not in d:
-            return False
-        if d["highway"] in STREET_TAGS:
-            return True
-        return False
-
-    OG = OSMGraph.from_pbf(osm_file, way_filter=way_filter)
+    OG = OSMGraph.from_pbf(osm_file, way_filter=street_filter)
     OG.simplify()
     G = OG.G
+
+    # Save simplified graph data for debugging
+    OG.construct_geometries()
+    G_simplified_fc = {
+        "type": "FeatureCollection",
+        "features": [
+            {
+                "type": "Feature",
+                "geometry": mapping(d["_geometry"]),
+                "properties": {"u": u, "v": v},
+            }
+            for u, v, d in G.edges(data=True)
+        ],
+    }
+    output_path = os.path.join(
+        output_dir, "crossing_tasks_simplified_ways.geojson"
+    )
+    with open(output_path, "w") as f:
+        json.dump(G_simplified_fc, f)
+
     # Extract intersections
     nodes = list(G.nodes)
     for node in nodes:
         if G.degree(node) <= 2:
             del G._node[node]
 
-    points = [(d["lon"], d["lat"]) for n, d in G.nodes(data=True)]
+    point_data = [(n, (d["lon"], d["lat"])) for n, d in G.nodes(data=True)]
     # polygon_coords = polygon["geometry"]["coordinates"][0][:-1]
     # points += polygon_coords
-    points = np.array(points)
+    point_data = np.array(point_data)
 
     points_fc = {
         "type": "FeatureCollection",
@@ -57,9 +67,9 @@ def extract_crossing_tasks(osm_file, neighborhood_geojson, output_dir):
             {
                 "type": "Feature",
                 "geometry": {"type": "Point", "coordinates": list(point)},
-                "properties": {},
+                "properties": {"node_id": n},
             }
-            for point in points
+            for n, point in point_data
         ],
     }
     output_path = os.path.join(output_dir, "crossing_tasks_points.geojson")
@@ -67,7 +77,12 @@ def extract_crossing_tasks(osm_file, neighborhood_geojson, output_dir):
         json.dump(points_fc, f)
 
     # Create voronoi polygons
-    vor = scipy.spatial.Voronoi(points)
+    xy = np.array([p for n, p in point_data])
+    if not xy.shape[0]:
+        raise Exception(
+            "No intersections! Is your area of interest within the OSM file?"
+        )
+    vor = scipy.spatial.Voronoi(xy)
     features = []
     for region in vor.regions:
         if not region:
