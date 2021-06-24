@@ -56,7 +56,7 @@ def extract_crossing_tasks(osm_file, neighborhood_geojson, output_dir):
         if G.degree(node) <= 2:
             del G._node[node]
 
-    point_data = [(n, (d["lon"], d["lat"])) for n, d in G.nodes(data=True)]
+    point_data = [(n, d["lon"], d["lat"]) for n, d in G.nodes(data=True)]
     # polygon_coords = polygon["geometry"]["coordinates"][0][:-1]
     # points += polygon_coords
     point_data = np.array(point_data)
@@ -66,10 +66,10 @@ def extract_crossing_tasks(osm_file, neighborhood_geojson, output_dir):
         "features": [
             {
                 "type": "Feature",
-                "geometry": {"type": "Point", "coordinates": list(point)},
+                "geometry": {"type": "Point", "coordinates": [lon, lat]},
                 "properties": {"node_id": n},
             }
-            for n, point in point_data
+            for n, lon, lat in point_data
         ],
     }
     output_path = os.path.join(output_dir, "crossing_tasks_points.geojson")
@@ -77,7 +77,7 @@ def extract_crossing_tasks(osm_file, neighborhood_geojson, output_dir):
         json.dump(points_fc, f)
 
     # Create voronoi polygons
-    xy = np.array([p for n, p in point_data])
+    xy = np.array([(lon, lat) for n, lon, lat in point_data])
     if not xy.shape[0]:
         raise Exception(
             "No intersections! Is your area of interest within the OSM file?"
