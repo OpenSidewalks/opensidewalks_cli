@@ -25,9 +25,18 @@ This tool is developed using [`poetry`](https://python-poetry.org/).
 It can be installed with `poetry` by running `poetry install` in the main repo
 directory or, if you have a recent version of `pip`, by running `pip install .`.
 
+Alternative: Use the included Dockerfile to automatically install and build all
+dependencies:
+
+    cd <CLONED_DIR> && docker build -t opensidewalks_cli .
+
+Then, for all subsequent commands that use `osw`, instead prepend with:
+    docker run -v $(pwd)/path/to/data_directory:/data opensidewalks_cli
+
+
 ## Creating task polygons for intersection and sidewalk mapping
 
-Run `osw tasks <path-to-osm-pbf> <path-to-aoi-polygon-geojson> <output-path>`,
+Run `osw task <path-to-osm-pbf> <path-to-aoi-polygon-geojson> <output-path>`,
 where:
 
 - `<path-to-osm-pbf` is a path to an OSM PBF file that has street data for the
