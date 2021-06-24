@@ -72,7 +72,12 @@ def cut_polygon(polygon, distances, points):
         # raise Exception()
         # # lines.append(LineString([(point.x, point.y)] + coords[i:]))
         # # coords = coords[:i] + [(point.x, point.y)]
-    lines.append(LineString(coords))
+    try:
+        line = LineString(coords)
+        lines.append(line)
+    except ValueError:
+        # TODO: implement logging, log as info
+        pass
     return lines
 
 

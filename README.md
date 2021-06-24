@@ -92,7 +92,7 @@ the path `./intermediate_data/north_linden.geojson`.
 (Optionally) Clip the OSM PBF using the AOI polygon and the osmium tool:
 `osmium extract -p intermediate_data/north_linden.geojson data_sources/ohio-latest.osm.pbf -o intermediate_data/north_linden.osm.pbf`
 . This will speed up the next steps if the extract is much larger than the
-AOI.
+AOI. Note that you will need osmium 1.5 or greater for this step.
 
 ### 3. Run the `osw` command line interface
 
