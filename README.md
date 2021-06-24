@@ -12,6 +12,8 @@ crossing a task boundary.
 full sidewalk coverage, this task would be an outline around the entire
 sidewalk path.
 
+Please note that this application requires Python version 3.7+
+
 ## Installation
 
 ### 1. Clone the repository
