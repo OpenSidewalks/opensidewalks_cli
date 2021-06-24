@@ -92,7 +92,19 @@ def extract_sidewalk_tasks(osm_file, neighborhood_geojson, output_dir):
     # Load neighborhood
     with open(neighborhood_geojson) as f:
         polygon_fc = json.load(f)
-    polygon = polygon_fc["features"][0]
+
+    if "type" in polygon_fc and polygon_fc["type"] == "FeatureCollection":
+        polygon = polygon_fc["features"][0]
+    elif (
+        "type" in polygon_fc
+        and polygon_fc["type"] == "Feature"
+        and polygon_fc["geometry"]["type"] in ("Polygon", "MultiPolygon")
+    ):
+        polygon = polygon_fc
+    else:
+        raise ValueError(
+            "GeoJSON area of interest is not a valid GeoJSON Polygon"
+        )
 
     OG = OSMGraph.from_pbf(osm_file, way_filter=street_filter)
 
