@@ -5,11 +5,11 @@ import geopandas as gpd
 from shapely.geometry import (
     LineString,
     MultiLineString,
-    mapping,
     shape,
 )
 from shapely.ops import polygonize
 
+from opensidewalks_cli.io import write_tasks
 from opensidewalks_cli.osm_graph import OSMGraph
 from opensidewalks_cli.way_filters import street_filter
 
@@ -222,18 +222,14 @@ def extract_sidewalk_tasks(osm_file, neighborhood_geojson, output_dir):
     # Combine the line data sources
     combined_lines = polygon_lines + list(gdf_trimmed["geometry"])
 
-    # Write to disk
+    # Create the polygons
+    # TODO: implement our own polygonization using the same logic as
+    # 'sidewalkify'. Shapely's is unreliable.
     sidewalk_tasks_polygons = polygonize(combined_lines)
-    features = []
-    for polygon in sidewalk_tasks_polygons:
-        feature = {
-            "type": "Feature",
-            "geometry": mapping(polygon),
-            "properties": {},
-        }
-        features.append(feature)
-    tasks_fc = {"type": "FeatureCollection", "features": features}
+    sidewalk_tasks = (
+        {"geometry": polygon} for polygon in sidewalk_tasks_polygons
+    )
 
+    # Write to disk
     output_path = os.path.join(output_dir, "sidewalk_tasks.geojson")
-    with open(output_path, "w") as f:
-        json.dump(tasks_fc, f)
+    write_tasks(sidewalk_tasks, output_path)

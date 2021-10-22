@@ -12,6 +12,7 @@ from shapely.geometry import (
 )
 
 from opensidewalks_cli.exceptions import InvalidPolygonError
+from opensidewalks_cli.io import write_tasks
 from opensidewalks_cli.osm_graph import OSMGraph
 from opensidewalks_cli.way_filters import street_filter
 
@@ -124,23 +125,9 @@ def extract_crossing_tasks(osm_file, neighborhood_geojson, output_dir):
     gdf_area = gpd.GeoDataFrame([{"geometry": polygon_shapely}])
     gdf_trimmed = gpd.overlay(gdf_tasks, gdf_area, how="intersection")
 
-    features = []
-    tasks_fc = {
-        "type": "FeatureCollection",
-        "features": [
-            {
-                "type": "Feature",
-                "geometry": mapping(row["geometry"]),
-                "properties": {},
-            }
-            for idx, row in gdf_trimmed.iterrows()
-        ],
-    }
-
     # FIXME: there are point without voronoi polygons near the edges.
     # Troubleshoot.
 
-    # Write to disk
+    gdf_list = list(zip(*gdf_trimmed.iterrows()))[1]
     output_path = os.path.join(output_dir, "crossing_tasks.geojson")
-    with open(output_path, "w") as f:
-        json.dump(tasks_fc, f)
+    write_tasks(gdf_list, output_path)
