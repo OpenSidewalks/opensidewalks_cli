@@ -12,7 +12,7 @@ osw = "opensidewalks_cli:cli.osw"
 python = "^3.8"
 jupyter = {extras = ["all"], version = "^1.0.0"}
 plotnine = "^0.7.1"
-numpy = "^1.19.5"
+numpy = "^1.20.0"
 scipy = "^1.6.1"
 geopandas = "^0.8.1"
 osmium = "^3.1.2"

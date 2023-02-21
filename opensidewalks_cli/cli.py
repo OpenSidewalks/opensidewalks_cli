@@ -27,7 +27,9 @@ def task(osm_file, area_geojson, output_dir):
         os.mkdir(output_dir)
 
     try:
+        click.echo("Extracting crossing tasks...")
         extract_crossing_tasks(osm_file, area_geojson, output_dir)
+        click.echo("Extracting sidewalks tasks...")
         extract_sidewalk_tasks(osm_file, area_geojson, output_dir)
     except InvalidPolygonError:
         raise InvalidPolygonError(

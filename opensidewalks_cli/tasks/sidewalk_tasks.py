@@ -2,6 +2,7 @@ import json
 import os
 
 import geopandas as gpd
+import shapely
 from shapely.geometry import (
     LineString,
     MultiLineString,
@@ -76,6 +77,9 @@ def cut_polygon(polygon, distances, points):
         line = LineString(coords)
         lines.append(line)
     except ValueError:
+        # TODO: implement logging, log as info
+        pass
+    except shapely.errors.GEOSException:
         # TODO: implement logging, log as info
         pass
     return lines

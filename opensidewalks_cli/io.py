@@ -1,5 +1,6 @@
 import json
 
+import numpy as np
 from shapely.geometry import mapping
 
 
@@ -20,10 +21,20 @@ def write_tasks(tasks, path):
         y = task.get("y", round(geometry.centroid.y, 6))
         z = task.get("z", DEFAULT_ZOOM)
 
+        geometry_json = mapping(geometry)
+        coords = []
+        for ring in geometry_json["coordinates"]:
+            new_ring = []
+            for coord in ring:
+                rounded = list(np.round(coord, 7))
+                new_ring.append(rounded)
+            coords.append(new_ring)
+        geometry_json["coordinates"] = coords
+
         features.append(
             {
                 "type": "Feature",
-                "geometry": mapping(geometry),
+                "geometry": geometry_json,
                 "properties": {"x": x, "y": y, "z": z},
             }
         )
