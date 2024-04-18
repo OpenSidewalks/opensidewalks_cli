@@ -71,7 +71,7 @@ Download [OSM data for Ohio from geofabrik](http://download.geofabrik.de/north-a
 
 Create a directory called `data_sources` and place the OSM PBF in it.
 
-`mv ~/Dowloads/ohio-latest.osm.pbf ./data_sources`
+`mv ~/Downloads/ohio-latest.osm.pbf ./data_sources`
 
 ### 2. Define an area of interest polygon and store in a GeoJSON file
 
