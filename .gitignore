@@ -7,8 +7,6 @@ __pycache__
 
 # GIS files
 *.qgz
-*.osm.pbf
-*.geojson
 
 # Repo-specific
 staging_directory/*
