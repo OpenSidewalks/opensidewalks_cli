@@ -113,3 +113,6 @@ have activated the Python environment in which you installed
 `poetry install`, you will need to run `poetry shell` in this repository before
 you can use `osw`. Alternatively, you can run the `osw` command from the base
 directory of the repository by using `poetry run`, such as `poetry run osw`.
+
+## Tasking Manager Projects
+A `tasking-manager-projects` directory is included which contains a template of the recommended staging folders as well as examples.
